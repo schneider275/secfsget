@@ -1,0 +1,30 @@
+import requests, json
+from google.colab import files
+
+UA = {"User-Agent": "MyClassProject/1.0 (yourname.#@osu.edu)"}
+
+ticker = "AAPL"          # ← change me
+form_type = "10-K"       # ← "10-K" or "10-Q"
+
+# 1) Ticker → CIK
+m = requests.get("https://www.sec.gov/files/company_tickers.json", headers=UA).json()
+cik = next(str(v["cik_str"]).zfill(10) for v in m.values() if v["ticker"].upper()==ticker.upper())
+
+# 2) Find latest filing of that form
+sub = requests.get(f"https://data.sec.gov/submissions/CIK{cik}.json", headers=UA).json()
+i = next(i for i,f in enumerate(sub["filings"]["recent"]["form"]) if f==form_type)
+accn_nodash = sub["filings"]["recent"]["accessionNumber"][i].replace("-", "")
+primary = sub["filings"]["recent"]["primaryDocument"][i]
+
+# 3) Download primary document (HTM/HTML)
+idx = requests.get(base + "index.json", headers=UA).json()
+names = [x["name"] for x in idx.get("directory", {}).get("item", [])]
+pick = next((n for n in names if n.lower().endswith(".xlsx")), primary)
+url = base + pick
+content = requests.get(url, headers=UA).content
+fname = f"{ticker}_{form_type}_{pick}"
+with open(fname, "wb") as f: f.write(content)
+
+# 4) Auto-download from Colab
+files.download(fname)
+print("Saved & downloading:", fname, "\nSource:", url)
