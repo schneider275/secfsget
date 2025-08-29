@@ -1,7 +1,7 @@
 import requests, json
 from google.colab import files
 
-UA = {"User-Agent": "MyClassProject/1.0 (yourname.#@osu.edu)"}
+UA = {"User-Agent": "MyClassProject/1.0 (yourname.#@osu.edu)"} #← your name.#
 
 ticker = "AAPL"          # ← change me
 form_type = "10-K"       # ← "10-K" or "10-Q"
