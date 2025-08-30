@@ -1,30 +1,31 @@
+# Download latest (or Nth) 10-K / 10-Q from SEC
 import requests, json
 from google.colab import files
 
-UA = {"User-Agent": "MyClassProject/1.0 (yourname.#@osu.edu)"} #← your name.#
-
-ticker = "AAPL"          # ← change me
-form_type = "10-K"       # ← "10-K" or "10-Q"
+UA = {"User-Agent": "MyClassProject/1.0 (yourname@email.com)"}  # real email helps
+ticker, form_type, N = "AAPL", "10-K", 0  # N=0 latest; 1 previous; etc.
 
 # 1) Ticker → CIK
 m = requests.get("https://www.sec.gov/files/company_tickers.json", headers=UA).json()
-cik = next(str(v["cik_str"]).zfill(10) for v in m.values() if v["ticker"].upper()==ticker.upper())
+cik = next(f"{int(v['cik_str']):010d}" for v in m.values() if v["ticker"].upper()==ticker.upper())
 
-# 2) Find latest filing of that form
-sub = requests.get(f"https://data.sec.gov/submissions/CIK{cik}.json", headers=UA).json()
-i = next(i for i,f in enumerate(sub["filings"]["recent"]["form"]) if f==form_type)
+# 2) Pick Nth most-recent filing of that form
+sub  = requests.get(f"https://data.sec.gov/submissions/CIK{cik}.json", headers=UA).json()
+idxs = [i for i,f in enumerate(sub["filings"]["recent"]["form"]) if f==form_type]
+i    = idxs[N]
 accn_nodash = sub["filings"]["recent"]["accessionNumber"][i].replace("-", "")
-primary = sub["filings"]["recent"]["primaryDocument"][i]
+primary     = sub["filings"]["recent"]["primaryDocument"][i]
+base        = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accn_nodash}/"  # <-- missing before
 
-# 3) Download primary document (HTM/HTML)
-idx = requests.get(base + "index.json", headers=UA).json()
-names = [x["name"] for x in idx.get("directory", {}).get("item", [])]
-pick = next((n for n in names if n.lower().endswith(".xlsx")), primary)
-url = base + pick
-content = requests.get(url, headers=UA).content
+# 3) Prefer attached .xlsx; else fall back to primary document
+idx   = requests.get(base + "index.json", headers=UA).json()
+names = [x["name"] for x in idx["directory"]["item"]]
+pick  = next((n for n in names if n.lower().endswith(".xlsx")), primary)
+
+url  = base + pick
+blob = requests.get(url, headers=UA).content
 fname = f"{ticker}_{form_type}_{pick}"
-with open(fname, "wb") as f: f.write(content)
+open(fname, "wb").write(blob)
 
-# 4) Auto-download from Colab
 files.download(fname)
 print("Saved & downloading:", fname, "\nSource:", url)
